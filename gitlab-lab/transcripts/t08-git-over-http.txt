@@ -1,0 +1,41 @@
+# Git itself, over HTTP, against the project from t07.
+# The token from t07 doubles as the git password (user name
+# "root"). This is the ordinary clone-commit-push a reader
+# does every day; here it also proves the request path —
+# NGINX, Workhorse, Gitaly, disk — end to end.
+
+$ git clone http://root:$TOK@127.0.0.1:8929/root/field-notes.git
+Cloning into 'field-notes'...
+warning: You appear to have cloned an empty repository.
+
+$ cd field-notes
+$ git config user.name "A. Gardener"
+$ git config user.email "gardener@example.org"
+
+# (Fixture files, invented for this guide: a README and one
+# short note about a gate that sticks after rain.)
+
+$ git add -A
+$ git commit -m "First notes: README and the gate at the bottom of the lane"
+$ git push origin main
+To http://127.0.0.1:8929/root/field-notes.git
+ * [new branch]      main -> main
+
+$ git log --oneline
+cf2ec57 First notes: README and the gate at the bottom of the lane
+
+# The same fact from the server's side, through the API —
+# the files really are stored by the instance, not just
+# accepted by it:
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" "http://127.0.0.1:8929/api/v4/projects/1/repository/tree?recursive=true"
+[{"name":"notes","type":"tree","path":"notes",...},{"name":"README.md","type":"blob","path":"README.md",...},{"name":"first-note.txt","type":"blob","path":"notes/first-note.txt",...}]
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" "http://127.0.0.1:8929/api/v4/projects/1/repository/commits"
+cf2ec57c First notes: README and the gate at the bottom of the lane | A. Gardener
+
+# Git over SSH is the other front door. It is not exercised
+# here — this sandbox runs no SSH server for GitLab to plug
+# into (the package depends on the system's openssh-server).
+# Chapter 5 says so plainly and teaches the SSH route from
+# the documentation.

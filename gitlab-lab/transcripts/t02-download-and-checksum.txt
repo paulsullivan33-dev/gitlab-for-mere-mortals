@@ -1,0 +1,40 @@
+# Downloading through the documented endpoint and checking the
+# result against the repository index from transcript t01.
+# The download took about five and a half minutes.
+
+$ curl -sSL -o gitlab-ce_19.5.3-ce.0_amd64.deb https://packages.gitlab.com/gitlab/gitlab-ce/packages/ubuntu/noble/gitlab-ce_19.5.3-ce.0_amd64.deb/download.deb
+
+$ ls -la gitlab-ce_19.5.3-ce.0_amd64.deb
+-rw-rw---- 1 root root 1214046962 Oct 30 06:05 gitlab-ce_19.5.3-ce.0_amd64.deb
+
+$ sha256sum gitlab-ce_19.5.3-ce.0_amd64.deb
+516f3c112c5b043ab87fee0e27d7fec98ad577c734a221f088e40a2c409aab40  gitlab-ce_19.5.3-ce.0_amd64.deb
+
+# The checksum matches the Packages index entry exactly
+# (516f3c11... in t01), and so does the size: 1214046962 bytes.
+
+$ dpkg-deb -I gitlab-ce_19.5.3-ce.0_amd64.deb
+ new Debian package, version 2.0.
+ size 1214046962 bytes: control archive=2355544 bytes.
+ Package: gitlab-ce
+ Version: 19.5.3-ce.0
+ License: MIT
+ Vendor: GitLab, Inc. <support@gitlab.com>
+ Architecture: amd64
+ Maintainer: GitLab, Inc. <support@gitlab.com>
+ Installed-Size: 4227907
+ Depends: openssh-server, perl
+ Conflicts: gitlab-ee, gitlab-fips, gitlab
+ Replaces: gitlab-ee, gitlab-fips, gitlab
+ Section: misc
+ Priority: extra
+ Homepage: https://about.gitlab.com/
+ Description: GitLab Community Edition (including NGINX, Postgres, Redis)
+
+# Two facts to carry forward:
+#   * Installed-Size is 4227907 — about 4.2 GB on disk once
+#     unpacked, from a 1.2 GB download.
+#   * The package depends on almost nothing from the system
+#     (openssh-server and perl). Everything else — Ruby,
+#     PostgreSQL, Redis, NGINX, Git — is inside the package.
+#     That is what "omnibus" means, and chapter 2 unpacks it.

@@ -1,0 +1,10 @@
+stages:
+  - check
+
+count-the-notes:
+  stage: check
+  script:
+    - echo "Notes in this repository:"
+    - ls notes/
+    - echo "Lines in the first note:"
+    - wc -l < notes/first-note.txt

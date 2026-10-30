@@ -1,0 +1,80 @@
+# CI: a runner of our own, and a pipeline that passes.
+# The runner is a separate program from the server — chapter
+# 8's main point — here version-matched to it.
+
+$ curl -sSL -o gitlab-runner https://gitlab-runner-downloads.s3.amazonaws.com/v19.5.0/binaries/gitlab-runner-linux-amd64
+$ chmod +x gitlab-runner
+$ ./gitlab-runner --version
+Version:      19.5.0
+Git revision: 70f5c12d
+Git branch:   19-5-stable
+GO version:   go1.26.7
+Built:        2026-10-14T17:52:25Z
+OS/Arch:      linux/amd64
+
+# Runners are created, not registered with a shared token
+# (the old registration-token flow is gone in current
+# GitLab). Creating one through the API returns its own
+# authentication token:
+
+$ curl -s -X POST -H "PRIVATE-TOKEN: $TOK" \
+    --data-urlencode "runner_type=instance_type" \
+    --data-urlencode "description=lab shell runner" \
+    --data-urlencode "tag_list=lab-shell" \
+    http://127.0.0.1:8929/api/v4/user/runners
+runner id: 1
+
+$ ./gitlab-runner register --non-interactive \
+    --config /home/hatch/workspace/gitlab-labwork/runner-config.toml \
+    --url http://127.0.0.1:8929 --token "$RTOK" \
+    --executor shell --description "lab shell runner"
+Verifying runner... is valid
+Runner registered successfully. Feel free to start it, but if it's running already the config should be automatically reloaded!
+Configuration (with the authentication token) was saved in "/home/hatch/workspace/gitlab-labwork/runner-config.toml"
+
+$ ./gitlab-runner run --config /home/hatch/workspace/gitlab-labwork/runner-config.toml
+
+# The pipeline definition is an ordinary file in the project
+# (kept in the repository, chapter 8 shows it in full). One
+# job: list the notes, count the lines of the first one.
+# Pushing it to main starts the pipeline:
+
+$ git push origin main
+   befa490..b63e3be  main -> main
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/projects/1/pipelines
+pipeline 1 running
+pipeline 1 success
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/projects/1/pipelines/1/jobs
+job 1 count-the-notes | stage: check | status: success | runner: lab shell runner
+
+# The job's own log, fetched through the API (timestamps and
+# progress markers trimmed; the words are the job's):
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/projects/1/jobs/1/trace
+Running with gitlab-runner 19.5.0 (70f5c12d)
+  on lab shell runner cjUSTve3u, system ID: s_7f699aa6b894
+Preparing the "shell" executor
+Using Shell (bash) executor...
+Getting source from Git repository
+Fetching changes with git depth set to 20...
+Checking out b63e3beb as detached HEAD (ref is main)...
+Executing "step_script" stage of the job script
+$ echo "Notes in this repository:"
+Notes in this repository:
+$ ls notes/
+first-note.txt
+parts-list.txt
+$ echo "Lines in the first note:"
+Lines in the first note:
+$ wc -l < notes/first-note.txt
+4
+Cleaning up project directory and file based variables
+Job succeeded
+
+# The checkout inside the job came from Gitaly — the same
+# store the push in t08 wrote to. One machine played every
+# part here; on a real install the runner usually lives on a
+# different machine from the server, which is chapter 8's
+# scaling story.

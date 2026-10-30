@@ -1,0 +1,69 @@
+# Talking to the instance through its API. The API needs a
+# personal access token; on a fresh install the practical way
+# to mint the first one is the Rails console runner, which is
+# also this lab's second permission lesson.
+
+# gitlab-rails drops to the git user before it runs anything,
+# and the first attempt pointed it at a script file only root
+# could read:
+
+$ /opt/gitlab/bin/gitlab-rails runner /home/hatch/workspace/gitlab-labwork/make-token.rb
+.../runner_command.rb:44:in `load': cannot load such file -- /home/hatch/workspace/gitlab-labwork/make-token.rb (LoadError)
+
+$ chmod 644 make-token.rb
+
+# The script itself is four lines: find the root account,
+# create a token with api + repository scopes, print it once.
+# The lab captured the printed value into a mode-600 file and
+# never displays it.
+
+$ cat make-token.rb
+user = User.find_by_username('root')
+token = user.personal_access_tokens.create!(scopes: %i[api read_repository write_repository], name: 'mere-mortals-lab', expires_at: 7.days.from_now)
+puts 'TOKEN-VALUE: ' + token.token
+puts 'token created for ' + user.username + ', id ' + token.id.to_s
+
+$ /opt/gitlab/bin/gitlab-rails runner /home/hatch/workspace/gitlab-labwork/make-token.rb
+token created for root, id 2
+
+# (id 2, not 1: an earlier inline attempt had created token
+# id 1 and then failed before its value could be saved. The
+# lab revoked the orphan through the API — DELETE answered
+# 204 — a reminder that a token you cannot see is still a key
+# to the building.)
+
+# With the token in a variable, the API answers:
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/version
+{"version":"19.5.3","revision":"0d4c9a9a2fa","kas":{"enabled":false,"externalUrl":null,"externalK8sProxyUrl":null,"version":null},"enterprise":false}
+
+# The revision, 0d4c9a9a2fa, is the same commit the package
+# manifest in t03 lists for gitlab-rails — the API and the
+# package agree about what is running. "enterprise": false
+# confirms this is the Community Edition.
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/user
+{"id":1,"username":"root","name":"Administrator","state":"active",...}
+
+# Creating the lab's example project, a private one under
+# the root account:
+
+$ curl -s -X POST -H "PRIVATE-TOKEN: $TOK" \
+    --data-urlencode "name=field-notes" \
+    --data-urlencode "description=Notes from the field — the lab's example project" \
+    --data-urlencode "visibility=private" \
+    http://127.0.0.1:8929/api/v4/projects
+{
+    "id": 1,
+    "description": "Notes from the field — the lab's example project",
+    "name": "field-notes",
+    "name_with_namespace": "Administrator / field-notes",
+    "path": "field-notes",
+    "path_with_namespace": "root/field-notes",
+    "default_branch": "main",
+    "ssh_url_to_repo": "git@127.0.0.1:root/field-notes.git",
+    "http_url_to_repo": "http://127.0.0.1:8929/root/field-notes.git",
+    "web_url": "http://127.0.0.1:8929/root/field-notes",
+    "visibility": "private",
+    ...
+}

@@ -1,0 +1,44 @@
+# Second reconfigure, after the permission fix in t04.
+# Chef is safe to re-run: it converges the machine to the
+# configuration, doing only what is still missing. This run
+# initialised PostgreSQL, loaded the database schema, ran
+# the migrations, and finished the job.
+
+$ /opt/gitlab/bin/gitlab-ctl reconfigure
+...
+Running db:schema:load rake task
+psql:.../db/structure.sql:9: NOTICE:  extension "btree_gist" already exists, skipping
+psql:.../db/structure.sql:11: NOTICE:  extension "pg_trgm" already exists, skipping
+...
+gitlab Reconfigured!
+
+$ /opt/gitlab/bin/gitlab-ctl status
+run: gitaly: (pid 65658) 238s; run: log: (pid 56275) 411s
+run: gitlab-workhorse: (pid 67906) 64s; run: log: (pid 67824) 75s
+run: logrotate: (pid 65534) 242s; run: log: (pid 54470) 473s
+run: nginx: (pid 67916) 64s; run: log: (pid 67874) 68s
+run: postgresql: (pid 65759) 231s; run: log: (pid 65834) 228s
+run: puma: (pid 67704) 89s; run: log: (pid 67730) 87s
+run: redis: (pid 65559) 240s; run: log: (pid 54627) 468s
+run: sidekiq: (pid 67746) 83s; run: log: (pid 67761) 82s
+
+# Eight services, all running under runit — no systemd
+# anywhere in this lab. The whole configured stack idles in
+# the memory this shared machine has left, which is tight:
+
+$ free -m
+               total        used        free      shared  buff/cache   available
+Mem:            7935        7378         136         307        1025         556
+
+# The web interface. First request lands while Puma is still
+# warming up — a 502 from the front door is normal for a
+# minute or two after a start — then the sign-in page:
+
+$ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8929/users/sign_in
+502
+
+$ curl -s -o /dev/null -w "%{http_code}\n" http://127.0.0.1:8929/users/sign_in
+200
+
+$ curl -s http://127.0.0.1:8929/users/sign_in | grep -o "<title>[^<]*</title>"
+<title>Sign in · GitLab</title>

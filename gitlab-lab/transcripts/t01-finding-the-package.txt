@@ -1,0 +1,40 @@
+# Finding the official package. GitLab publishes an apt
+# repository index; reading it first means the lab knows the
+# exact version, size and checksum before downloading anything.
+
+$ curl -s https://packages.gitlab.com/gitlab/gitlab-ce/ubuntu/dists/noble/main/binary-amd64/Packages.gz | zcat | grep -E "^Version:" | sort -V | tail -3
+Version: 19.5.0-ce.0
+Version: 19.5.1-ce.0
+Version: 19.5.3-ce.0
+
+# The newest entry in full:
+
+Version: 19.5.3-ce.0
+Size: 1214046962
+SHA256: 516f3c112c5b043ab87fee0e27d7fec98ad577c734a221f088e40a2c409aab40
+Filename: pool/main/g/gitlab-ce/gitlab-ce_19.5.3-ce.0_amd64.deb
+
+# The lab's first download attempt used that pool path directly
+# and produced a 14-byte file. Checking what arrived before
+# trusting it is the whole point of having the checksum:
+
+$ ls -la gitlab-ce_19.5.3-ce.0_amd64.deb
+-rw-rw---- 1 root root 14 Oct 30 05:59 gitlab-ce_19.5.3-ce.0_amd64.deb
+
+$ cat gitlab-ce_19.5.3-ce.0_amd64.deb
+404: Not Found
+
+# The pool path is not directly downloadable. The documented
+# download endpoint is the one that works — it answers with a
+# redirect to a signed storage URL whose name is the SHA256
+# from the index above:
+
+$ curl -sIL https://packages.gitlab.com/gitlab/gitlab-ce/packages/ubuntu/noble/gitlab-ce_19.5.3-ce.0_amd64.deb/download.deb
+HTTP/1.1 302 Found
+Location: https://storage.googleapis.com/packages-ops/artifact/51/6f3c112c5b043ab87fee0e27d7fec98ad577c734a221f088e40a2c409aab40?...
+HTTP/1.1 200 OK
+Content-Type: application/octet-stream
+Content-Length: 1214046962
+
+# (The size matches the index exactly; the download itself and
+# its checksum are transcript t02.)

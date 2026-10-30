@@ -1,0 +1,41 @@
+# Signing in as the administrator for the first time.
+# A fresh install has exactly one account: root. Its initial
+# password is written to a file the package guards at mode
+# 600, and the file is deleted by GitLab within 24 hours:
+
+$ ls -la /etc/gitlab/
+-rw------- 1 root root 16216 Oct 30 06:13 gitlab-secrets.json
+-rw------- 1 root root   695 Oct 30 06:09 gitlab.rb
+-rw------- 1 root root   745 Oct 30 06:13 initial_root_password
+drwxr-xr-x 2 root root     0 Oct 30 06:09 trusted-certs
+
+$ grep "^Password:" /etc/gitlab/initial_root_password
+Password: (the lab does not print it; the command below reads
+           it straight from the file into a shell variable)
+
+# The sign-in below is the browser's own flow, driven with
+# curl: fetch the form, take its authenticity token, post
+# the credentials with a cookie jar. A wrong password gets
+# the form again (200). The right one gets a redirect (302)
+# into the signed-in side — and for a brand-new instance,
+# that side is the first-run setup page:
+
+$ curl -s -b cookies.txt -c cookies.txt -o /dev/null \
+    -w "POST /users/sign_in -> HTTP %{http_code} (redirect: %{redirect_url})\n" \
+    --data-urlencode "authenticity_token=$TOKEN" \
+    --data-urlencode "user[login]=root" \
+    --data-urlencode "user[password]=$PW" \
+    --data-urlencode "user[remember_me]=0" \
+    http://127.0.0.1:8929/users/sign_in
+POST /users/sign_in -> HTTP 302 (redirect: http://127.0.0.1:8929/admin/registrations/groups/new)
+
+$ curl -s -b cookies.txt -o /dev/null -w "GET /admin/registrations/groups/new -> HTTP %{http_code}\n" http://127.0.0.1:8929/admin/registrations/groups/new
+GET /admin/registrations/groups/new -> HTTP 200
+
+$ curl -s -b cookies.txt http://127.0.0.1:8929/admin/registrations/groups/new | grep -o "<title>[^<]*</title>"
+<title>Create your first project · GitLab</title>
+
+# Signed in as root, on the "create your first project"
+# page. Instead of clicking through it, the lab keeps the
+# browser session for later and does the next steps through
+# the API, which is transcript t07.

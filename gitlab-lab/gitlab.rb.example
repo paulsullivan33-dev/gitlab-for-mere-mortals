@@ -1,0 +1,17 @@
+## GitLab configuration file — lab instance
+## Written by hand for this guide's lab, following what the
+## package's post-install script does, with a small deliberate
+## configuration instead of the full 3,849-line template.
+
+## The address the instance answers to. Loopback only.
+external_url 'http://127.0.0.1:8929'
+
+## Lean settings for a small shared machine (2 CPUs, ~8 GB
+## of memory in total, most of it spoken for). Each of these
+## turns off or trims something the default install runs.
+prometheus_monitoring['enable'] = false
+alertmanager['enable'] = false
+gitlab_kas['enable'] = false
+puma['worker_processes'] = 2
+sidekiq['concurrency'] = 10
+postgresql['shared_buffers'] = "256MB"

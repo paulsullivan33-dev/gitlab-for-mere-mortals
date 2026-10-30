@@ -1,0 +1,39 @@
+# The review loop: an issue, a branch, a merge request,
+# a merge — and the issue closing itself because the merge
+# request said "Closes #1". All through the API; the web
+# pages a reader would click show the same objects.
+
+$ curl -s -X POST -H "PRIVATE-TOKEN: $TOK" \
+    --data-urlencode "title=Buy a washer for the gate hinge" \
+    --data-urlencode "description=From the first field note: the gate at the bottom of the lane sticks after rain. The hinge needs a washer." \
+    http://127.0.0.1:8929/api/v4/projects/1/issues
+issue #1 | Buy a washer for the gate hinge | state: opened
+
+# A second commit, on a branch this time — a parts list that
+# names the washer:
+
+$ git checkout -b washer-for-the-gate
+$ git add -A
+$ git commit -m "Add a parts list with the washer for the gate hinge"
+$ git push origin washer-for-the-gate
+
+$ curl -s -X POST -H "PRIVATE-TOKEN: $TOK" \
+    --data-urlencode "source_branch=washer-for-the-gate" \
+    --data-urlencode "target_branch=main" \
+    --data-urlencode "title=Add the parts list (washer for the gate)" \
+    --data-urlencode "description=Closes #1 once merged." \
+    http://127.0.0.1:8929/api/v4/projects/1/merge_requests
+MR !1 | Add the parts list (washer for the gate) | state: opened | washer-for-the-gate -> main
+
+$ curl -s -X PUT -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/projects/1/merge_requests/1/merge
+MR !1 state: merged | merge commit: befa4905
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" http://127.0.0.1:8929/api/v4/projects/1/issues/1
+issue #1 state: closed
+
+# And main now holds all three commits:
+
+$ curl -s -H "PRIVATE-TOKEN: $TOK" "http://127.0.0.1:8929/api/v4/projects/1/repository/commits"
+befa4905 Merge branch 'washer-for-the-gate' into 'main'
+060dcf67 Add a parts list with the washer for the gate hinge
+cf2ec57c First notes: README and the gate at the bottom of the lane

@@ -1,0 +1,36 @@
+# Two closing checks: the built-in health endpoint, and a
+# full backup of the running instance.
+
+$ curl -s http://127.0.0.1:8929/-/health
+GitLab OK
+
+# The backup command walks every kind of data the instance
+# holds — database, repositories, uploads, build traces,
+# artifacts, pages, LFS objects, terraform states — and packs
+# them into one dated tarball:
+
+$ /opt/gitlab/bin/gitlab-backup create
+2026-10-30 06:30:01 UTC -- Dumping database ... done
+2026-10-30 06:30:02 UTC -- Dumping repositories ... done
+2026-10-30 06:30:02 UTC -- Dumping uploads ... done
+2026-10-30 06:30:02 UTC -- Dumping builds ... done
+2026-10-30 06:30:02 UTC -- Dumping artifacts ... done
+2026-10-30 06:30:02 UTC -- Dumping pages ... done
+2026-10-30 06:30:02 UTC -- Dumping lfs objects ... done
+2026-10-30 06:30:02 UTC -- Dumping terraform states ... done
+
+$ ls -la /var/opt/gitlab/backups/
+drwx------ 1 git  root        92 Oct 30 06:30 .
+-rw------- 1 git  git   880640 Oct 30 06:30 1793341793_2026_10_30_19.5.3_gitlab_backup.tar
+
+# 880,640 bytes for an instance holding one small project.
+# The name carries the GitLab version (19.5.3): a backup can
+# only be restored into the same version it was taken from,
+# which chapter 9 makes a rule, not a footnote.
+# What the tarball does NOT contain is the configuration and
+# the secrets file — /etc/gitlab/gitlab.rb and
+# /etc/gitlab/gitlab-secrets.json must be copied separately,
+# or the restored instance cannot read its own database.
+# The restore itself was not run in this lab: it needs a
+# second stopped instance of the same version, and the lab
+# had neither the memory nor a reason to fake one.

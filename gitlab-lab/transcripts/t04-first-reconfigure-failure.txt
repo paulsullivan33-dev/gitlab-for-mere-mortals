@@ -1,0 +1,60 @@
+# First reconfigure attempt. The lab wrote a small deliberate
+# /etc/gitlab/gitlab.rb (external_url on loopback, the
+# monitoring stack and KAS off, Puma and Sidekiq trimmed,
+# PostgreSQL shared_buffers at 256MB) and ran the same command
+# the package's post-install script runs. It got a long way —
+# 348 resources created, the service users (git, gitlab-www,
+# gitlab-psql, gitlab-redis) made — and then failed:
+
+$ /opt/gitlab/bin/gitlab-ctl reconfigure
+...
+[2026-10-30T06:12:23+00:00] FATAL: Errno::EACCES: execute[/opt/gitlab/embedded/bin/initdb -D /var/opt/gitlab/postgresql/data -E UTF8] (postgresql::enable line 59) had an error: Errno::EACCES: Permission denied - /opt/gitlab/embedded/bin/initdb
+
+# The same refusal, from the already-started Gitaly service,
+# which runs as the unprivileged git user:
+
+$ tail /var/log/gitlab/gitaly/current
+chpst: fatal: unable to run: /opt/gitlab/embedded/bin/gitaly-wrapper: access denied
+chpst: fatal: unable to run: /opt/gitlab/embedded/bin/gitaly-wrapper: access denied
+
+# Diagnosis: the binaries are fine — root runs them all day.
+# GitLab's daemons do not run as root. They run as their own
+# users, and those users have to be able to walk the path to
+# the programs. The extracted tree lives under the lab's home
+# directory, and namei shows the two doors that are shut
+# (everything else on the path is world-readable):
+
+$ namei -l /opt/gitlab/embedded/bin/initdb
+...
+drwxrws--- root nogroup   hatch            <- no access for others
+drwxrwx--x root nogroup   workspace
+drwxrwx--- root root      gitlab-labwork   <- no access for others
+drwx------ root root      root             <- no access for others
+...
+-rwxr-xr-x root root      initdb
+
+# On a real install none of this arises: dpkg puts the tree
+# at /opt/gitlab on world-readable directories. The lab fix
+# keeps the tree where it is and opens exactly the doors the
+# four service users need — execute-only traversal of the
+# home directory for those users by name (an ACL), and
+# ordinary read/execute on the lab's own two folders:
+
+$ chmod 755 ~/workspace/gitlab-labwork ~/workspace/gitlab-labwork/root
+$ setfacl -m u:git:--x,u:gitlab-www:--x,u:gitlab-psql:--x,u:gitlab-redis:--x /home/hatch
+
+$ getfacl -p /home/hatch | grep ^user:
+user::rwx
+user:gitlab-psql:--x
+user:gitlab-redis:--x
+user:git:--x
+user:gitlab-www:--x
+
+# Proof, as the database user this time:
+
+$ su gitlab-psql -s /bin/sh -c "/opt/gitlab/embedded/bin/initdb --version"
+initdb (PostgreSQL) 17.11
+
+# Lesson the guide keeps: "permission denied" for a program
+# you can run yourself usually means the program's real user
+# cannot reach it. Check the whole path, not the file.

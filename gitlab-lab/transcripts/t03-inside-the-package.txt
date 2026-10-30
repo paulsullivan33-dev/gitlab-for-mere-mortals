@@ -1,0 +1,77 @@
+# Unpacking the .deb with dpkg -x (extraction only — no
+# maintainer scripts run, nothing is installed system-wide)
+# gives one directory tree. This is what is inside it.
+
+$ dpkg -x gitlab-ce_19.5.3-ce.0_amd64.deb root
+$ du -sh root
+3.9G    root
+
+$ ls root/opt/gitlab
+LICENSE
+LICENSES
+bin
+dependency_licenses.json
+embedded
+etc
+init
+licenses
+service
+sv
+version-manifest.json
+version-manifest.txt
+
+# The manifest names every component the package carries.
+# The lines that matter for chapter 2 of the guide:
+
+$ grep -E "^(postgresql|redis|nginx|ruby|prometheus|registry|runit) " root/opt/gitlab/version-manifest.txt
+nginx                    release-1.31.4
+postgresql               17.11
+prometheus               v3.13.2
+redis                    7.2.16
+registry                 v4.42.0-gitlab
+ruby                     3.3.12
+runit                    2.1.2
+
+# (also in the manifest: gitaly v19.5.3, gitlab-rails v19.5.3,
+# gitlab-shell v14.58.0, gitlab-pages v19.5.3, gitlab-kas
+# v19.5.3, alertmanager v0.34.0, chef-gem 18.3.0)
+
+# The bundled programs hard-code the path /opt/gitlab in
+# their library search paths. Run from the extraction folder
+# they cannot find their own libraries:
+
+$ ./embedded/bin/git --version
+./git: error while loading shared libraries: libiconv.so.2: cannot open shared object file: No such file or directory
+
+# A real install puts the tree at /opt/gitlab. The lab does
+# the same with a symlink, and the same programs run:
+
+$ ln -s ~/workspace/gitlab-labwork/root/opt/gitlab /opt/gitlab
+$ /opt/gitlab/embedded/bin/git --version
+git version 2.55.0-rc1.g02bb39c
+
+$ /opt/gitlab/embedded/bin/ruby -v
+ruby 3.3.12 (2026-07-16 revision 0581089df9) [x86_64-linux]
+
+$ /opt/gitlab/embedded/bin/psql --version
+psql (PostgreSQL) 17.11
+
+$ /opt/gitlab/embedded/bin/redis-server -v
+Redis server v=7.2.16 sha=335554f1:0 malloc=jemalloc-5.3.0 bits=64 build=216ca5bf215e53d9
+
+# The one configuration file an administrator ever edits is
+# generated from this template by the package's post-install
+# script (read in full by the lab):
+
+$ wc -l /opt/gitlab/etc/gitlab.rb.template
+3849 /opt/gitlab/etc/gitlab.rb.template
+
+# And the post-install script itself, reduced to its actions:
+#   1. symlink the gitlab-ctl commands into place
+#      (embedded/bin/symlink_ctl_cmds)
+#   2. copy etc/gitlab.rb.template to /etc/gitlab/gitlab.rb
+#      with the external URL filled in
+#   3. run: gitlab-ctl upgrade   (which reconfigures the stack)
+# The lab follows the same steps by hand in transcript t04,
+# with one change: the configuration is written small and
+# deliberate instead of copied from the 2,940-line template.
